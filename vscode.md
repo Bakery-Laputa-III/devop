@@ -41,7 +41,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "mkdir -p ${workspaceFolder}/bin && clang -g -std=gnu89 -o ${workspaceFolder}/bin/${fileBasenameNoExtension} ${file}"
+                "cd ${workspaceFolder} && make"
             ],
             "group": "build"
         }
