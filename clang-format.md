@@ -58,16 +58,16 @@ def main():
         print(f"错误: 找不到源目录: {source_dir}")
         return
     
-    # 加载已格式化文件记录
-    formatted_files = set()
+    # 加载已格式化文件记录（包含文件修改时间）
+    formatted_records = {}
     if os.path.exists(record_file):
         try:
             with open(record_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                formatted_files = set(data.get('formatted_files', []))
+                formatted_records = data.get('formatted_records', {})
         except (json.JSONDecodeError, IOError) as e:
             print(f"警告: 无法读取记录文件 {record_file}: {e}")
-            formatted_files = set()
+            formatted_records = {}
     
     # 获取所有cpp文件
     cpp_files = []
@@ -85,12 +85,19 @@ def main():
     newly_formatted = []
     for cpp_file in cpp_files:
         file_name = os.path.basename(cpp_file)
+        file_stat = os.stat(cpp_file)
+        current_mtime = file_stat.st_mtime
         
-        if file_name in formatted_files:
-            print(f"跳过已格式化文件: {file_name}")
-            continue
-        
-        print(f"正在格式化: {file_name}")
+        # 检查文件是否需要重新格式化
+        if file_name in formatted_records:
+            recorded_mtime = formatted_records[file_name].get('mtime', 0)
+            if current_mtime <= recorded_mtime:
+                print(f"跳过未修改文件: {file_name}")
+                continue
+            else:
+                print(f"检测到文件已修改，重新格式化: {file_name}")
+        else:
+            print(f"正在格式化新文件: {file_name}")
         
         try:
             # 使用clang-format格式化文件
@@ -102,7 +109,12 @@ def main():
             )
             
             if result.returncode == 0:
-                formatted_files.add(file_name)
+                # 获取格式化后的文件修改时间
+                formatted_mtime = os.stat(cpp_file).st_mtime
+                formatted_records[file_name] = {
+                    'mtime': formatted_mtime,
+                    'formatted_at': str(formatted_mtime)
+                }
                 newly_formatted.append(file_name)
                 print(f"✓ 成功格式化: {file_name}")
             else:
@@ -118,8 +130,8 @@ def main():
     # 保存记录
     try:
         record_data = {
-            'formatted_files': list(formatted_files),
-            'last_updated': str(Path(cpp_files[0]).stat().st_mtime if cpp_files else 0)
+            'formatted_records': formatted_records,
+            'last_updated': str(Path().stat().st_mtime)
         }
         
         with open(record_file, 'w', encoding='utf-8') as f:
@@ -127,7 +139,7 @@ def main():
         
         print(f"\n格式化完成!")
         print(f"新格式化文件: {len(newly_formatted)} 个")
-        print(f"总计已格式化文件: {len(formatted_files)} 个")
+        print(f"总计已格式化文件: {len(formatted_records)} 个")
         print(f"记录已保存到: {record_file}")
         
     except IOError as e:
