@@ -1,3 +1,5 @@
+1. format配置文件
+```.clang-format
 ---
 BasedOnStyle: LLVM
 # 最通用的大括号风格：Attach (K&R/Java风格)
@@ -20,7 +22,7 @@ AllowShortFunctionsOnASingleLine: InlineOnly # 只允许内联函数和空函数
 PointerAlignment: Left # 最通用的方式：Type* ptr;
 
 # 包含文件排序
-SortIncludes: CaseSensitive
+SortIncludes: true
 
 # 空格控制
 SpaceBeforeParens: ControlStatements # 只在控制语句后加空格：if () vs func()
@@ -29,4 +31,108 @@ SpacesInAngles: false
 
 # 换行时保持可读性
 BreakBeforeBinaryOperators: NonAssignment # 在非赋值运算符前换行更清晰
-...
+```
+
+2. py脚本
+```py
+#!/usr/bin/env python3
+import os
+import json
+import subprocess
+from pathlib import Path
+
+def main():
+    # 配置文件和目录（使用相对路径）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    clang_format_file = os.path.join(script_dir, ".clang-format")
+    source_dir = os.path.join(script_dir, "100hot")
+    record_file = os.path.join(script_dir, "format_record.json")
+    
+    # 检查.clang-format文件是否存在
+    if not os.path.exists(clang_format_file):
+        print(f"错误: 找不到.clang-format文件: {clang_format_file}")
+        return
+    
+    # 检查源目录是否存在
+    if not os.path.exists(source_dir):
+        print(f"错误: 找不到源目录: {source_dir}")
+        return
+    
+    # 加载已格式化文件记录
+    formatted_files = set()
+    if os.path.exists(record_file):
+        try:
+            with open(record_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                formatted_files = set(data.get('formatted_files', []))
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"警告: 无法读取记录文件 {record_file}: {e}")
+            formatted_files = set()
+    
+    # 获取所有cpp文件
+    cpp_files = []
+    for file in os.listdir(source_dir):
+        if file.endswith('.cpp'):
+            cpp_files.append(os.path.join(source_dir, file))
+    
+    if not cpp_files:
+        print("没有找到.cpp文件")
+        return
+    
+    print(f"找到 {len(cpp_files)} 个cpp文件")
+    
+    # 格式化文件
+    newly_formatted = []
+    for cpp_file in cpp_files:
+        file_name = os.path.basename(cpp_file)
+        
+        if file_name in formatted_files:
+            print(f"跳过已格式化文件: {file_name}")
+            continue
+        
+        print(f"正在格式化: {file_name}")
+        
+        try:
+            # 使用clang-format格式化文件
+            result = subprocess.run(
+                ['clang-format', '-style=file', '-i', cpp_file],
+                capture_output=True,
+                text=True,
+                cwd=script_dir
+            )
+            
+            if result.returncode == 0:
+                formatted_files.add(file_name)
+                newly_formatted.append(file_name)
+                print(f"✓ 成功格式化: {file_name}")
+            else:
+                print(f"✗ 格式化失败: {file_name}")
+                print(f"错误: {result.stderr}")
+                
+        except FileNotFoundError:
+            print("错误: 未找到clang-format命令，请确保已安装clang-format")
+            return
+        except Exception as e:
+            print(f"✗ 格式化时发生错误: {file_name} - {e}")
+    
+    # 保存记录
+    try:
+        record_data = {
+            'formatted_files': list(formatted_files),
+            'last_updated': str(Path(cpp_files[0]).stat().st_mtime if cpp_files else 0)
+        }
+        
+        with open(record_file, 'w', encoding='utf-8') as f:
+            json.dump(record_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n格式化完成!")
+        print(f"新格式化文件: {len(newly_formatted)} 个")
+        print(f"总计已格式化文件: {len(formatted_files)} 个")
+        print(f"记录已保存到: {record_file}")
+        
+    except IOError as e:
+        print(f"警告: 无法保存记录文件 {record_file}: {e}")
+
+if __name__ == "__main__":
+    main()
+```
