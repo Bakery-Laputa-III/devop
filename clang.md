@@ -27,3 +27,15 @@ for std in c++98 c++03 c++11 c++14 c++17 c++20 c++23 c++2b c++26 c++2c \
     fi
 done
 ```
+
+4. clang-format
+```shell
+sudo apt install clang-format-21
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 100
+```
+
+5. clangd
+```shell
+sudo apt install clangd-21
+sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-21 100
+```
